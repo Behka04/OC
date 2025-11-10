@@ -66,5 +66,5 @@ int main() {
     std::cout << "Multi-threaded sum: " << multiSum << std::endl;
     std::cout << "Multi-threaded time: " << multiTime.count() << " seconds" << std::endl;
 
-    return 0;🤝
+    return 0;
 }
