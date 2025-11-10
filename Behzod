@@ -9,15 +9,11 @@ const int MIN_VALUE = 0;
 const int MAX_VALUE = 2;
 const int VECTOR_SIZE = 1000000;
 const int PRECISION = 12;
-
-// Функция для генерации случайных чисел с плавающей точкой
 void generateRandomData(std::vector<double>& data) {
     for (size_t i = 0; i < data.size(); ++i) {
         data[i] = MIN_VALUE + (MAX_VALUE - MIN_VALUE) * (rand() / static_cast<double>(RAND_MAX));
     }
 }
-
-// Функция для подсчёта суммы части вектора
 void partialSum(const std::vector<double>& data, size_t start, size_t end, double& result) {
     result = 0;
     for (size_t i = start; i < end; ++i) {
@@ -34,8 +30,6 @@ int main() {
 
     std::vector<double> values(VECTOR_SIZE);
     generateRandomData(values);
-
-    // Однопоточный подсчёт
     auto t1_start = std::chrono::high_resolution_clock::now();
     double singleSum = 0;
     for (double val : values) {
@@ -46,8 +40,6 @@ int main() {
 
     std::cout << "Single-threaded sum: " << singleSum << std::endl;
     std::cout << "Single-threaded time: " << singleTime.count() << " seconds" << std::endl;
-
-    // Многопоточный подсчёт
     std::vector<std::thread> threadPool;
     std::vector<double> threadResults(numThreads, 0);
     size_t blockSize = VECTOR_SIZE / numThreads;
