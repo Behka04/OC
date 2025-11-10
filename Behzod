@@ -1,79 +1,78 @@
 #include <iostream>
 #include <vector>
 #include <thread>
+#include <cstdlib>
 #include <ctime>
 #include <chrono>
 
-#define MIN_VAL 0
-#define MAX_VAL 2
-#define DECIMALS 12
+const int MIN_VALUE = 0;
+const int MAX_VALUE = 2;
+const int VECTOR_SIZE = 1000000;
+const int PRECISION = 12;
 
-template <typename T>
-double computePartialSum(const std::vector<T>& data, unsigned begin, unsigned finish) {
-    double partial = 0;
-    for (unsigned i = begin; i < finish; ++i)
-        partial += data[i];
-    return partial;
+// Функция для генерации случайных чисел с плавающей точкой
+void generateRandomData(std::vector<double>& data) {
+    for (size_t i = 0; i < data.size(); ++i) {
+        data[i] = MIN_VALUE + (MAX_VALUE - MIN_VALUE) * (rand() / static_cast<double>(RAND_MAX));
+    }
 }
 
-void fillRandom(std::vector<int>& data) {
-    for (auto& val : data)
-        val = MIN_VAL + rand() % (MAX_VAL - MIN_VAL + 1);
-}
-
-void fillRandom(std::vector<double>& data) {
-    for (auto& val : data)
-        val = MIN_VAL + (MAX_VAL - MIN_VAL) * (rand() / static_cast<double>(RAND_MAX));
+// Функция для подсчёта суммы части вектора
+void partialSum(const std::vector<double>& data, size_t start, size_t end, double& result) {
+    result = 0;
+    for (size_t i = start; i < end; ++i) {
+        result += data[i];
+    }
 }
 
 int main() {
-    std::cout.precision(DECIMALS);
+    std::cout.precision(PRECISION);
     srand(static_cast<unsigned>(time(nullptr)));
 
-    unsigned int threadCount = std::thread::hardware_concurrency();
-    std::cout << "Available threads: " << threadCount << std::endl;
+    unsigned int numThreads = std::thread::hardware_concurrency();
+    std::cout << "Detected threads: " << numThreads << std::endl;
 
-    std::vector<double> numbers(1'000'000);
-    fillRandom(numbers);
+    std::vector<double> values(VECTOR_SIZE);
+    generateRandomData(values);
 
-    unsigned int chunkSize = numbers.size() / threadCount;
+    // Однопоточный подсчёт
+    auto t1_start = std::chrono::high_resolution_clock::now();
+    double singleSum = 0;
+    for (double val : values) {
+        singleSum += val;
+    }
+    auto t1_end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> singleTime = t1_end - t1_start;
 
-    auto startSingle = std::chrono::high_resolution_clock::now();
-    double singleThreadSum = 0;
-    for (const auto& num : numbers)
-        singleThreadSum += num;
-    auto endSingle = std::chrono::high_resolution_clock::now();
+    std::cout << "Single-threaded sum: " << singleSum << std::endl;
+    std::cout << "Single-threaded time: " << singleTime.count() << " seconds" << std::endl;
 
-    std::chrono::duration<double> durationSingle = endSingle - startSingle;
-    std::cout << "Sum (single-threaded): " << singleThreadSum << std::endl;
-    std::cout << "Time (single-threaded): " << durationSingle.count() << std::endl;
+    // Многопоточный подсчёт
+    std::vector<std::thread> threadPool;
+    std::vector<double> threadResults(numThreads, 0);
+    size_t blockSize = VECTOR_SIZE / numThreads;
 
-    std::vector<std::thread> workers(threadCount);
-    std::vector<double> results(threadCount, 0);
+    auto t2_start = std::chrono::high_resolution_clock::now();
+    for (unsigned int i = 0; i < numThreads; ++i) {
+        size_t startIdx = i * blockSize;
+        size_t endIdx = (i == numThreads - 1) ? VECTOR_SIZE : startIdx + blockSize;
 
-    auto startMulti = std::chrono::high_resolution_clock::now();
-
-    for (unsigned int i = 0; i < threadCount; ++i) {
-        unsigned int begin = i * chunkSize;
-        unsigned int finish = (i == threadCount - 1) ? numbers.size() : begin + chunkSize;
-
-        workers[i] = std::thread([&numbers, &results, begin, finish, i]() {
-            results[i] = computePartialSum(numbers, begin, finish);
-        });
+        threadPool.emplace_back(partialSum, std::cref(values), startIdx, endIdx, std::ref(threadResults[i]));
     }
 
-    for (auto& t : workers)
-        t.join();
+    for (auto& th : threadPool) {
+        th.join();
+    }
 
-    double multiThreadSum = 0;
-    for (const auto& part : results)
-        multiThreadSum += part;
+    double multiSum = 0;
+    for (double part : threadResults) {
+        multiSum += part;
+    }
+    auto t2_end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> multiTime = t2_end - t2_start;
 
-    auto endMulti = std::chrono::high_resolution_clock::now();
-    std::chrono::duration<double> durationMulti = endMulti - startMulti;
+    std::cout << "Multi-threaded sum: " << multiSum << std::endl;
+    std::cout << "Multi-threaded time: " << multiTime.count() << " seconds" << std::endl;
 
-    std::cout << "Sum (multi-threaded): " << multiThreadSum << std::endl;
-    std::cout << "Time (multi-threaded): " << durationMulti.count() << std::endl;
-
-    return 0;
+    return 0;🤝
 }
