@@ -1,0 +1,79 @@
+#include <iostream>
+#include <vector>
+#include <thread>
+#include <ctime>
+#include <chrono>
+
+#define MIN_VAL 0
+#define MAX_VAL 2
+#define DECIMALS 12
+
+template <typename T>
+double computePartialSum(const std::vector<T>& data, unsigned begin, unsigned finish) {
+    double partial = 0;
+    for (unsigned i = begin; i < finish; ++i)
+        partial += data[i];
+    return partial;
+}
+
+void fillRandom(std::vector<int>& data) {
+    for (auto& val : data)
+        val = MIN_VAL + rand() % (MAX_VAL - MIN_VAL + 1);
+}
+
+void fillRandom(std::vector<double>& data) {
+    for (auto& val : data)
+        val = MIN_VAL + (MAX_VAL - MIN_VAL) * (rand() / static_cast<double>(RAND_MAX));
+}
+
+int main() {
+    std::cout.precision(DECIMALS);
+    srand(static_cast<unsigned>(time(nullptr)));
+
+    unsigned int threadCount = std::thread::hardware_concurrency();
+    std::cout << "Available threads: " << threadCount << std::endl;
+
+    std::vector<double> numbers(1'000'000);
+    fillRandom(numbers);
+
+    unsigned int chunkSize = numbers.size() / threadCount;
+
+    auto startSingle = std::chrono::high_resolution_clock::now();
+    double singleThreadSum = 0;
+    for (const auto& num : numbers)
+        singleThreadSum += num;
+    auto endSingle = std::chrono::high_resolution_clock::now();
+
+    std::chrono::duration<double> durationSingle = endSingle - startSingle;
+    std::cout << "Sum (single-threaded): " << singleThreadSum << std::endl;
+    std::cout << "Time (single-threaded): " << durationSingle.count() << std::endl;
+
+    std::vector<std::thread> workers(threadCount);
+    std::vector<double> results(threadCount, 0);
+
+    auto startMulti = std::chrono::high_resolution_clock::now();
+
+    for (unsigned int i = 0; i < threadCount; ++i) {
+        unsigned int begin = i * chunkSize;
+        unsigned int finish = (i == threadCount - 1) ? numbers.size() : begin + chunkSize;
+
+        workers[i] = std::thread([&numbers, &results, begin, finish, i]() {
+            results[i] = computePartialSum(numbers, begin, finish);
+        });
+    }
+
+    for (auto& t : workers)
+        t.join();
+
+    double multiThreadSum = 0;
+    for (const auto& part : results)
+        multiThreadSum += part;
+
+    auto endMulti = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> durationMulti = endMulti - startMulti;
+
+    std::cout << "Sum (multi-threaded): " << multiThreadSum << std::endl;
+    std::cout << "Time (multi-threaded): " << durationMulti.count() << std::endl;
+
+    return 0;
+}
